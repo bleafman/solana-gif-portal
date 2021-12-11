@@ -57,7 +57,8 @@ export default function App() {
       console.log("Fetching GIF list...");
 
       // Call Solana program here.
-      getGifList(setGifList);
+      // getGifList(setGifList);
+      setGifList(TEST_GIFS);
     }
   }, [walletAddress]);
 
@@ -71,8 +72,8 @@ export default function App() {
           </p>
 
           {walletAddress
-            ? renderConnectedContainer({ gifList, setGifList })
-            : renderNotConnectedContainer({ setWalletAddress })}
+            ? renderConnectedContainer()
+            : renderNotConnectedContainer()}
         </div>
         <div className="footer-container">
           <img alt="Twitter Logo" className="twitter-logo" src={twitterLogo} />
@@ -86,40 +87,40 @@ export default function App() {
       </div>
     </div>
   );
-}
 
-function renderNotConnectedContainer({ setWalletAddress }) {
-  return (
-    <button
-      className="cta-button connect-wallet-button"
-      onClick={() => connectWallet(setWalletAddress)}
-    >
-      Connect to Wallet
-    </button>
-  );
-}
+  function renderNotConnectedContainer() {
+    return (
+      <button
+        className="cta-button connect-wallet-button"
+        onClick={() => connectWallet()}
+      >
+        Connect to Wallet
+      </button>
+    );
+  }
 
-function renderConnectedContainer({ gifList = [], setGifList }) {
-  return (
-    <div className="connected-container">
-      <p className="connected-text">Connected to your Phantom Wallet!</p>
-      <div className="gif-container">
-        {gifList.map((gif, index) => (
-          <img alt="GIF" className="gif" key={index} src={gif} />
-        ))}
+  function renderConnectedContainer() {
+    return (
+      <div className="connected-container">
+        <p className="connected-text">Connected to your Phantom Wallet!</p>
+        <div className="gif-container">
+          {gifList.map((gif, index) => (
+            <img alt="GIF" className="gif" key={index} src={gif} />
+          ))}
+        </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
 
-async function connectWallet(setWalletAddress) {
-  console.log("Connecting to wallet...");
-  const { solana } = window;
+  async function connectWallet() {
+    console.log("Connecting to wallet...");
+    const { solana } = window;
 
-  if (solana) {
-    const response = await solana.connect();
-    console.log("Connected with Public Key:", response.publicKey.toString());
-    setWalletAddress(response.publicKey.toString());
+    if (solana) {
+      const response = await solana.connect();
+      console.log("Connected with Public Key:", response.publicKey.toString());
+      setWalletAddress(response.publicKey.toString());
+    }
   }
 }
 
