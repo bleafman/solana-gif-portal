@@ -41,6 +41,7 @@ export default function App() {
 
   const [walletAddress, setWalletAddress] = React.useState(null);
   const [gifList, setGifList] = React.useState([]);
+  const [inputValue, setInputValue] = React.useState("");
 
   React.useEffect(() => {
     const onLoad = async () => {
@@ -58,7 +59,7 @@ export default function App() {
 
       // Call Solana program here.
       // getGifList(setGifList);
-      setGifList(TEST_GIFS);
+      fetchAndSetGifList();
     }
   }, [walletAddress]);
 
@@ -100,16 +101,50 @@ export default function App() {
   }
 
   function renderConnectedContainer() {
-    return (
-      <div className="connected-container">
-        <p className="connected-text">Connected to your Phantom Wallet!</p>
-        <div className="gif-container">
-          {gifList.map((gif, index) => (
-            <img alt="GIF" className="gif" key={index} src={gif} />
-          ))}
+    // If we hit this, it means the program account hasn't been initialized.
+    if (gifList === null) {
+      return (
+        <div className="connected-container">
+          <button
+            className="cta-button submit-gif-button"
+            onClick={createGifAccount}
+          >
+            Do One-Time Initialization For GIF Program Account
+          </button>
         </div>
-      </div>
-    );
+      );
+    }
+    // Otherwise, we're good! Account exists. User can submit GIFs.
+    else {
+      return (
+        <div className="connected-container">
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              sendGif();
+            }}
+          >
+            <input
+              type="text"
+              placeholder="Enter gif link!"
+              value={inputValue}
+              onChange={(event) => setInputValue(event.target.value)}
+            />
+            <button type="submit" className="cta-button submit-gif-button">
+              Submit
+            </button>
+          </form>
+          <div className="gif-grid">
+            {/* We use index as the key instead, also, the src is now item.gifLink */}
+            {gifList.map((item, index) => (
+              <div className="gif-item" key={index}>
+                <img src={item.gifLink} />
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
   }
 
   async function connectWallet() {
@@ -120,6 +155,70 @@ export default function App() {
       const response = await solana.connect();
       console.log("Connected with Public Key:", response.publicKey.toString());
       setWalletAddress(response.publicKey.toString());
+    }
+  }
+
+  async function createGifAccount() {
+    try {
+      const provider = getProvider();
+      const program = new Program(idl, programID, provider);
+      console.log("ping");
+      await program.rpc.startStuffOff({
+        accounts: {
+          baseAccount: baseAccount.publicKey,
+          user: provider.wallet.publicKey,
+          systemProgram: SystemProgram.programId,
+        },
+        signers: [baseAccount],
+      });
+      console.log(
+        "Created a new BaseAccount w/ address:",
+        baseAccount.publicKey.toString()
+      );
+      await fetchAndSetGifList();
+    } catch (error) {
+      console.log("Error creating BaseAccount account:", error);
+    }
+  }
+
+  async function fetchAndSetGifList() {
+    try {
+      const provider = getProvider();
+      const program = new Program(idl, programID, provider);
+      const account = await program.account.baseAccount.fetch(
+        baseAccount.publicKey
+      );
+
+      console.log("Got the account", account);
+      setGifList(account.gifList);
+    } catch (error) {
+      console.log("Error in getGifList: ", error);
+      setGifList(null);
+    }
+  }
+
+  async function sendGif(gifUrl) {
+    if (gifUrl.length === 0) {
+      console.log("No gif link given!");
+      return;
+    }
+
+    console.log("Gif link:", gifUrl);
+    try {
+      const provider = getProvider();
+      const program = new Program(idl, programID, provider);
+
+      await program.rpc.addGif(gifUrl, {
+        accounts: {
+          baseAccount: baseAccount.publicKey,
+          user: provider.wallet.publicKey,
+        },
+      });
+      console.log("GIF successfully sent to program", gifUrl);
+
+      await fetchAndSetGifList();
+    } catch (error) {
+      console.log("Error sending GIF:", error);
     }
   }
 }
@@ -149,31 +248,6 @@ async function connectToPhantomWalletIfFound(setWalletAddress) {
   }
 }
 
-async function sendGif(gifUrl) {
-  if (gifUrl.length === 0) {
-    console.log("No gif link given!");
-    return;
-  }
-
-  console.log("Gif link:", gifUrl);
-  try {
-    const provider = getProvider();
-    const program = new Program(idl, programID, provider);
-
-    await program.rpc.addGif(gifUrl, {
-      accounts: {
-        baseAccount: baseAccount.publicKey,
-        user: provider.wallet.publicKey,
-      },
-    });
-    console.log("GIF successfully sent to program", gifUrl);
-
-    await getGifList();
-  } catch (error) {
-    console.log("Error sending GIF:", error);
-  }
-}
-
 function getProvider() {
   const connection = new Connection(network, opts.preflightCommitment);
   const provider = new Provider(
@@ -182,20 +256,4 @@ function getProvider() {
     opts.preflightCommitment
   );
   return provider;
-}
-
-async function getGifList(setGifList) {
-  try {
-    const provider = getProvider();
-    const program = new Program(idl, programID, provider);
-    const account = await program.account.baseAccount.fetch(
-      baseAccount.publicKey
-    );
-
-    console.log("Got the account", account);
-    setGifList(account.gifList);
-  } catch (error) {
-    console.log("Error in getGifList: ", error);
-    setGifList(null);
-  }
 }
